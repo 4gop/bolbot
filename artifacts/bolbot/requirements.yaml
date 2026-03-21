@@ -1,0 +1,20 @@
+packages:
+  "framer-motion": "For smooth chat bubble entry animations and leaderboard staggering"
+  "recharts": "For the admin dashboard statistics charts"
+  "react-markdown": "To render BolBot's AI text responses with formatting"
+  "clsx": "For conditional class names in custom components"
+  "tailwind-merge": "For merging tailwind classes in custom components"
+  "uuid": "For generating unique anonymous session IDs"
+  "@types/uuid": "Types for uuid"
+
+images:
+  - path: "artifacts/bolbot/public/images/bolbot-avatar.png"
+    description: "A friendly, cute, warm glowing robot face with energetic orange accents on a very dark background. 3D rendered, premium, modern app icon style."
+    aspect_ratio: "1:1"
+  - path: "artifacts/bolbot/public/images/hero-bg.png"
+    description: "Abstract dark background with subtle glowing orange and red gradients, smooth mesh style, premium and deep."
+    aspect_ratio: "16:9"
+
+notes:
+  - using @workspace/api-client-react for all API calls
+  - local storage used for sessionId and initial visit tracking

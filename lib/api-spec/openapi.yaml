@@ -1,15 +1,24 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: BolBot API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: chat
+    description: Chat and AI operations
+  - name: users
+    description: User management
+  - name: leaderboard
+    description: Gamification leaderboard
+  - name: stats
+    description: Admin statistics
+  - name: webhooks
+    description: Platform webhooks
 paths:
   /healthz:
     get:
@@ -24,6 +33,151 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /chat:
+    post:
+      operationId: sendMessage
+      tags: [chat]
+      summary: Send a message to BolBot
+      description: Send text, audio (base64), or image (base64) and receive an AI response
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatRequest"
+      responses:
+        "200":
+          description: AI response with gamification data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [leaderboard]
+      summary: Get weekly top 10 leaderboard
+      responses:
+        "200":
+          description: Weekly leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LeaderboardResponse"
+
+  /stats:
+    get:
+      operationId: getAdminStats
+      tags: [stats]
+      summary: Admin statistics dashboard
+      parameters:
+        - name: token
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Admin statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /webhook/whatsapp:
+    post:
+      operationId: whatsappWebhook
+      tags: [webhooks]
+      summary: Twilio WhatsApp webhook
+      description: Receives WhatsApp messages via Twilio and responds
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                Body:
+                  type: string
+                From:
+                  type: string
+                MediaUrl0:
+                  type: string
+                MediaContentType0:
+                  type: string
+              required:
+                - From
+      responses:
+        "200":
+          description: TwiML response
+          content:
+            application/xml:
+              schema:
+                type: string
+        "400":
+          description: Bad request
+
+  /webhook/telegram:
+    post:
+      operationId: telegramWebhook
+      tags: [webhooks]
+      summary: Telegram bot webhook
+      description: Receives Telegram messages and responds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: OK
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +188,241 @@ components:
       required:
         - status
 
+    ChatRequest:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          description: Anonymous session identifier for web users
+        message:
+          type: string
+          description: Text message from user (optional if audio/image provided)
+        audioData:
+          type: string
+          description: Base64-encoded audio file (WebM/WAV/OGG)
+        imageData:
+          type: string
+          description: Base64-encoded image file
+        imageMimeType:
+          type: string
+          description: MIME type of image (e.g. image/jpeg)
+        requestVoiceResponse:
+          type: boolean
+          description: Whether to also return a voice response
+          default: false
+      required:
+        - sessionId
+
+    ChatResponse:
+      type: object
+      properties:
+        text:
+          type: string
+          description: BolBot text response
+        audioBase64:
+          type: string
+          description: Base64-encoded Hindi TTS audio (if requested)
+        points:
+          type: integer
+          description: Points earned in this interaction
+        totalPoints:
+          type: integer
+          description: User's total points
+        streakCount:
+          type: integer
+          description: Current daily streak
+        newBadges:
+          type: array
+          items:
+            $ref: "#/components/schemas/Badge"
+          description: Newly earned badges
+        inputType:
+          type: string
+          enum: [text, voice, image]
+          description: Type of input received
+      required:
+        - text
+        - points
+        - totalPoints
+        - streakCount
+        - newBadges
+        - inputType
+
+    Badge:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+      required:
+        - id
+        - name
+        - description
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+        username:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        points:
+          type: integer
+        streakCount:
+          type: integer
+        totalMessages:
+          type: integer
+        badges:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - platform
+        - points
+        - streakCount
+        - totalMessages
+        - badges
+        - createdAt
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+        points:
+          type: integer
+        streakCount:
+          type: integer
+        platform:
+          type: string
+      required:
+        - rank
+        - userId
+        - points
+        - streakCount
+        - platform
+
+    LeaderboardResponse:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderboardEntry"
+        weekStart:
+          type: string
+          format: date
+        weekEnd:
+          type: string
+          format: date
+      required:
+        - entries
+        - weekStart
+        - weekEnd
+
+    DailyActivity:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        count:
+          type: integer
+      required:
+        - date
+        - count
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        messagesToday:
+          type: integer
+        totalMessages:
+          type: integer
+        voiceCount:
+          type: integer
+        textCount:
+          type: integer
+        imageCount:
+          type: integer
+        activeUsersToday:
+          type: integer
+        dailyActivity:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyActivity"
+        recentInteractions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecentInteraction"
+      required:
+        - totalUsers
+        - messagesToday
+        - totalMessages
+        - voiceCount
+        - textCount
+        - imageCount
+        - activeUsersToday
+        - dailyActivity
+        - recentInteractions
+
+    RecentInteraction:
+      type: object
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+        inputType:
+          type: string
+        userMessage:
+          type: string
+        botResponse:
+          type: string
+        pointsEarned:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - platform
+        - inputType
+        - userMessage
+        - botResponse
+        - pointsEarned
+        - createdAt
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
