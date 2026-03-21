@@ -82,7 +82,9 @@ Main simple Hindi mein explain karunga!`;
 
 function validateTelegramSecret(req: import("express").Request): boolean {
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!expectedSecret) return true;
+  if (!expectedSecret) {
+    return process.env.NODE_ENV !== "production";
+  }
   const provided = req.headers["x-telegram-bot-api-secret-token"];
   return provided === expectedSecret;
 }
