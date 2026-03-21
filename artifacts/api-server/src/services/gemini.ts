@@ -41,43 +41,110 @@ export interface ConversationTurn {
   content: string;
 }
 
+// ---------------------------------------------------------------------------
+// Rate-limiting queue — enforces a 2-second gap between Gemini calls
+// ---------------------------------------------------------------------------
+
+const INTER_CALL_DELAY_MS = 2000;
+const RETRY_BASE_DELAY_MS = 5000;
+const MAX_RETRIES = 3;
+
+let lastCallTime = 0;
+let queuePromise: Promise<void> = Promise.resolve();
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Enqueue a Gemini call. Every call waits for the previous one to finish,
+ * then pauses until at least INTER_CALL_DELAY_MS has passed since the last
+ * API request before dispatching.
+ */
+async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  let result!: T;
+  let error: unknown;
+
+  const step = queuePromise.then(async () => {
+    const now = Date.now();
+    const wait = INTER_CALL_DELAY_MS - (now - lastCallTime);
+    if (wait > 0) await sleep(wait);
+    lastCallTime = Date.now();
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        result = await fn();
+        return;
+      } catch (err: unknown) {
+        const is429 =
+          err instanceof Error &&
+          (err.message.includes("429") || err.message.toLowerCase().includes("quota") || err.message.toLowerCase().includes("resource exhausted"));
+
+        if (is429 && attempt < MAX_RETRIES) {
+          const backoff = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+          await sleep(backoff);
+          lastCallTime = Date.now();
+          continue;
+        }
+
+        error = err;
+        return;
+      }
+    }
+  });
+
+  queuePromise = step.catch(() => {});
+  await step;
+
+  if (error !== undefined) throw error;
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 export async function generateTextResponse(
   userMessage: string,
   history: ConversationTurn[]
 ): Promise<string> {
-  const ai = getGenAI();
-  const model = ai.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    systemInstruction: BOLBOT_SYSTEM_PROMPT,
+  return enqueue(async () => {
+    const ai = getGenAI();
+    const model = ai.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: BOLBOT_SYSTEM_PROMPT,
+    });
+
+    const chatHistory = history.map((turn) => ({
+      role: turn.role,
+      parts: [{ text: turn.content }],
+    }));
+
+    const chat = model.startChat({ history: chatHistory });
+    const result = await chat.sendMessage(userMessage);
+    return result.response.text();
   });
-
-  const chatHistory = history.map((turn) => ({
-    role: turn.role,
-    parts: [{ text: turn.content }],
-  }));
-
-  const chat = model.startChat({ history: chatHistory });
-  const result = await chat.sendMessage(userMessage);
-  return result.response.text();
 }
 
 export async function transcribeAudio(audioBase64: string, mimeType: string = "audio/ogg"): Promise<string> {
-  const ai = getGenAI();
-  const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
+  return enqueue(async () => {
+    const ai = getGenAI();
+    const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-  const audioPart: Part = {
-    inlineData: {
-      data: audioBase64,
-      mimeType,
-    },
-  };
+    const audioPart: Part = {
+      inlineData: {
+        data: audioBase64,
+        mimeType,
+      },
+    };
 
-  const result = await model.generateContent([
-    audioPart,
-    "Please transcribe this audio accurately. If it's in Hindi, Hinglish, or Bhojpuri, transcribe as-is in the original language.",
-  ]);
+    const result = await model.generateContent([
+      audioPart,
+      "Please transcribe this audio accurately. If it's in Hindi, Hinglish, or Bhojpuri, transcribe as-is in the original language.",
+    ]);
 
-  return result.response.text();
+    return result.response.text();
+  });
 }
 
 export async function explainImage(
@@ -85,25 +152,27 @@ export async function explainImage(
   mimeType: string,
   history: ConversationTurn[]
 ): Promise<string> {
-  const ai = getGenAI();
-  const model = ai.getGenerativeModel({
-    model: "gemini-2.0-flash",
-    systemInstruction: BOLBOT_SYSTEM_PROMPT,
+  return enqueue(async () => {
+    const ai = getGenAI();
+    const model = ai.getGenerativeModel({
+      model: "gemini-2.0-flash",
+      systemInstruction: BOLBOT_SYSTEM_PROMPT,
+    });
+
+    const imagePart: Part = {
+      inlineData: {
+        data: imageBase64,
+        mimeType,
+      },
+    };
+
+    const chatHistory = history.map((turn) => ({
+      role: turn.role,
+      parts: [{ text: turn.content }],
+    }));
+
+    const chat = model.startChat({ history: chatHistory });
+    const result = await chat.sendMessage([imagePart, IMAGE_EXPLANATION_PROMPT]);
+    return result.response.text();
   });
-
-  const imagePart: Part = {
-    inlineData: {
-      data: imageBase64,
-      mimeType,
-    },
-  };
-
-  const chatHistory = history.map((turn) => ({
-    role: turn.role,
-    parts: [{ text: turn.content }],
-  }));
-
-  const chat = model.startChat({ history: chatHistory });
-  const result = await chat.sendMessage([imagePart, IMAGE_EXPLANATION_PROMPT]);
-  return result.response.text();
 }
