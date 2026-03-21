@@ -89,13 +89,13 @@ export default function ChatPage() {
         setCurrentBadge(response.newBadges[0]);
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send message:', error);
-      // Optional: Add an error message bubble
+      const errMsg = error?.response?.data?.message || error?.message || 'Kuch galat ho gaya. Dobara try karo! 😅';
       setMessages(prev => [...prev, {
         id: uuidv4(),
         role: 'bot',
-        content: 'Oops! Something went wrong. Please try again.'
+        content: errMsg
       }]);
     }
   };

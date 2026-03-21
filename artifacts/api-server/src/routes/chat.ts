@@ -137,9 +137,16 @@ router.post("/chat", async (req, res) => {
       newBadges,
       inputType,
     });
-  } catch (err) {
+  } catch (err: any) {
     req.log.error({ err }, "Chat error");
-    res.status(500).json({ error: "server_error", message: "Something went wrong" });
+    if (err?.status === 429) {
+      res.status(429).json({
+        error: "quota_exceeded",
+        message: "Abhi bahut zyada requests aa rahe hain. Thodi der baad dobara try karo! 🙏",
+      });
+      return;
+    }
+    res.status(500).json({ error: "server_error", message: "Kuch galat ho gaya. Dobara try karo! 😅" });
   }
 });
 

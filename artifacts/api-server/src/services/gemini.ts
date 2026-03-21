@@ -47,7 +47,7 @@ export async function generateTextResponse(
 ): Promise<string> {
   const ai = getGenAI();
   const model = ai.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-2.0-flash",
     systemInstruction: BOLBOT_SYSTEM_PROMPT,
   });
 
@@ -63,7 +63,7 @@ export async function generateTextResponse(
 
 export async function transcribeAudio(audioBase64: string, mimeType: string = "audio/ogg"): Promise<string> {
   const ai = getGenAI();
-  const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
   const audioPart: Part = {
     inlineData: {
@@ -87,7 +87,7 @@ export async function explainImage(
 ): Promise<string> {
   const ai = getGenAI();
   const model = ai.getGenerativeModel({
-    model: "gemini-1.5-flash",
+    model: "gemini-2.0-flash",
     systemInstruction: BOLBOT_SYSTEM_PROMPT,
   });
 
