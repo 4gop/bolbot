@@ -33,9 +33,10 @@ let geminiClient: GoogleGenerativeAI | null = null;
 
 function getAnthropic(): Anthropic {
   if (!anthropicClient) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) throw new Error("ANTHROPIC_API_KEY environment variable is required");
-    anthropicClient = new Anthropic({ apiKey });
+    const baseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
+    const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY ?? process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("No Anthropic API key configured");
+    anthropicClient = new Anthropic({ apiKey, ...(baseURL ? { baseURL } : {}) });
   }
   return anthropicClient;
 }
