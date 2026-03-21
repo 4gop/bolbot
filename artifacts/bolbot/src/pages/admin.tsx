@@ -15,7 +15,7 @@ export default function AdminStatsPage() {
 
   const { data, isLoading, error } = useGetAdminStats(
     { token: token || '' },
-    { query: { enabled: !!token, retry: false } }
+    { query: { enabled: !!token, retry: false, queryKey: ['admin-stats', token] } }
   );
 
   if (!token) {

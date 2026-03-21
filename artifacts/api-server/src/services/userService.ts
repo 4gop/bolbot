@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { usersTable, interactionsTable, conversationMemoryTable } from "@workspace/db/schema";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
+import { generateAvatar } from "./imageGen.js";
 import type { User, InsertUser } from "@workspace/db/schema";
 
 export async function getOrCreateUser(platformUserId: string, platform: string = "web"): Promise<User> {
@@ -21,6 +22,12 @@ export async function getOrCreateUser(platformUserId: string, platform: string =
       platformUserId,
     })
     .returning();
+
+  void generateAvatar().then((avatarUrl) => {
+    if (avatarUrl) {
+      void db.update(usersTable).set({ avatarUrl }).where(eq(usersTable.id, newUser.id));
+    }
+  }).catch(() => {});
 
   return newUser;
 }
@@ -46,18 +53,10 @@ export async function updateUser(
 }
 
 export async function getConversationHistory(userId: number, limit = 10) {
-  const cutoff = new Date();
-  cutoff.setHours(cutoff.getHours() - 24);
-
   const rows = await db
     .select()
     .from(conversationMemoryTable)
-    .where(
-      and(
-        eq(conversationMemoryTable.userId, userId),
-        gte(conversationMemoryTable.createdAt, cutoff)
-      )
-    )
+    .where(eq(conversationMemoryTable.userId, userId))
     .orderBy(desc(conversationMemoryTable.createdAt))
     .limit(limit);
 
@@ -98,30 +97,59 @@ export async function getLeaderboard(limit = 10) {
 
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
 
-  const rows = await db
+  const weeklyRows = await db
+    .select({
+      userId: interactionsTable.userId,
+      weeklyPoints: sql<number>`COALESCE(SUM(${interactionsTable.pointsEarned}), 0)::int`,
+    })
+    .from(interactionsTable)
+    .where(
+      and(
+        gte(interactionsTable.createdAt, weekStart),
+        sql`${interactionsTable.createdAt} <= ${weekEnd}`
+      )
+    )
+    .groupBy(interactionsTable.userId)
+    .orderBy(desc(sql`SUM(${interactionsTable.pointsEarned})`))
+    .limit(limit);
+
+  if (weeklyRows.length === 0) {
+    return {
+      entries: [],
+      weekStart: weekStart.toISOString().split("T")[0],
+      weekEnd: weekEnd.toISOString().split("T")[0],
+    };
+  }
+
+  const userIds = weeklyRows.map((r) => r.userId);
+  const userRows = await db
     .select({
       id: usersTable.id,
       username: usersTable.username,
       avatarUrl: usersTable.avatarUrl,
-      points: usersTable.points,
       streakCount: usersTable.streakCount,
       platform: usersTable.platform,
     })
     .from(usersTable)
-    .orderBy(desc(usersTable.points))
-    .limit(limit);
+    .where(sql`${usersTable.id} = ANY(${userIds})`);
+
+  const userMap = new Map(userRows.map((u) => [u.id, u]));
 
   return {
-    entries: rows.map((r, i) => ({
-      rank: i + 1,
-      userId: r.id,
-      username: r.username,
-      avatarUrl: r.avatarUrl,
-      points: r.points,
-      streakCount: r.streakCount,
-      platform: r.platform,
-    })),
+    entries: weeklyRows.map((r, i) => {
+      const user = userMap.get(r.userId);
+      return {
+        rank: i + 1,
+        userId: r.userId,
+        username: user?.username ?? null,
+        avatarUrl: user?.avatarUrl ?? null,
+        points: r.weeklyPoints,
+        streakCount: user?.streakCount ?? 0,
+        platform: user?.platform ?? "web",
+      };
+    }),
     weekStart: weekStart.toISOString().split("T")[0],
     weekEnd: weekEnd.toISOString().split("T")[0],
   };

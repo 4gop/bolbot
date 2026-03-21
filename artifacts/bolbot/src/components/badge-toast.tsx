@@ -16,19 +16,19 @@ interface BadgeToastProps {
 
 export function BadgeToast({ badge, onClose }: BadgeToastProps) {
   useEffect(() => {
-    if (badge) {
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#FF6B35', '#FFA630', '#FFFFFF']
-      });
+    if (!badge) return;
 
-      const timer = setTimeout(() => {
-        onClose();
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ['#FF6B35', '#FFA630', '#FFFFFF']
+    });
+
+    const timer = setTimeout(() => {
+      onClose();
+    }, 5000);
+    return () => clearTimeout(timer);
   }, [badge, onClose]);
 
   return (
