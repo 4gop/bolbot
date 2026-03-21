@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, Part } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 
 const BOLBOT_SYSTEM_PROMPT = `Tu BolBot hai — Bharat ka sabse cool aur samajhdaar tutor. Tera kaam hai India ke chhote sheher ke students ki madad karna.
 
@@ -23,18 +24,34 @@ Conversation history is provided. Use it to:
 
 const IMAGE_EXPLANATION_PROMPT = `Is image mein jo bhi question, concept, ya problem hai use class 10 ke student ko explain karo. Simple Hindi mein. Step by step. Ek real life example zaroor do.`;
 
-let genAI: GoogleGenerativeAI | null = null;
+// ---------------------------------------------------------------------------
+// Lazy singletons
+// ---------------------------------------------------------------------------
 
-function getGenAI(): GoogleGenerativeAI {
-  if (!genAI) {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY environment variable is required");
-    }
-    genAI = new GoogleGenerativeAI(apiKey);
+let anthropicClient: Anthropic | null = null;
+let geminiClient: GoogleGenerativeAI | null = null;
+
+function getAnthropic(): Anthropic {
+  if (!anthropicClient) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error("ANTHROPIC_API_KEY environment variable is required");
+    anthropicClient = new Anthropic({ apiKey });
   }
-  return genAI;
+  return anthropicClient;
 }
+
+function getGemini(): GoogleGenerativeAI {
+  if (!geminiClient) {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) throw new Error("GEMINI_API_KEY environment variable is required");
+    geminiClient = new GoogleGenerativeAI(apiKey);
+  }
+  return geminiClient;
+}
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 export interface ConversationTurn {
   role: "user" | "model";
@@ -42,34 +59,29 @@ export interface ConversationTurn {
 }
 
 // ---------------------------------------------------------------------------
-// Rate-limiting queue — enforces a 2-second gap between Gemini calls
+// Gemini queue — still used for transcription & image understanding
 // ---------------------------------------------------------------------------
 
 const INTER_CALL_DELAY_MS = 2000;
 const RETRY_BASE_DELAY_MS = 5000;
 const MAX_RETRIES = 3;
 
-let lastCallTime = 0;
-let queuePromise: Promise<void> = Promise.resolve();
+let lastGeminiCallTime = 0;
+let geminiQueuePromise: Promise<void> = Promise.resolve();
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Enqueue a Gemini call. Every call waits for the previous one to finish,
- * then pauses until at least INTER_CALL_DELAY_MS has passed since the last
- * API request before dispatching.
- */
-async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+async function enqueueGemini<T>(fn: () => Promise<T>): Promise<T> {
   let result!: T;
   let error: unknown;
 
-  const step = queuePromise.then(async () => {
+  const step = geminiQueuePromise.then(async () => {
     const now = Date.now();
-    const wait = INTER_CALL_DELAY_MS - (now - lastCallTime);
+    const wait = INTER_CALL_DELAY_MS - (now - lastGeminiCallTime);
     if (wait > 0) await sleep(wait);
-    lastCallTime = Date.now();
+    lastGeminiCallTime = Date.now();
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -78,12 +90,14 @@ async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
       } catch (err: unknown) {
         const is429 =
           err instanceof Error &&
-          (err.message.includes("429") || err.message.toLowerCase().includes("quota") || err.message.toLowerCase().includes("resource exhausted"));
+          (err.message.includes("429") ||
+            err.message.toLowerCase().includes("quota") ||
+            err.message.toLowerCase().includes("resource exhausted"));
 
         if (is429 && attempt < MAX_RETRIES) {
           const backoff = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
           await sleep(backoff);
-          lastCallTime = Date.now();
+          lastGeminiCallTime = Date.now();
           continue;
         }
 
@@ -93,7 +107,7 @@ async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
     }
   });
 
-  queuePromise = step.catch(() => {});
+  geminiQueuePromise = step.catch(() => {});
   await step;
 
   if (error !== undefined) throw error;
@@ -101,41 +115,49 @@ async function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 // ---------------------------------------------------------------------------
-// Public API
+// Text responses — Claude (Anthropic)
 // ---------------------------------------------------------------------------
 
 export async function generateTextResponse(
   userMessage: string,
   history: ConversationTurn[]
 ): Promise<string> {
-  return enqueue(async () => {
-    const ai = getGenAI();
-    const model = ai.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: BOLBOT_SYSTEM_PROMPT,
-    });
+  const client = getAnthropic();
 
-    const chatHistory = history.map((turn) => ({
-      role: turn.role,
-      parts: [{ text: turn.content }],
-    }));
+  const messages: Anthropic.MessageParam[] = [
+    ...history.map((turn) => ({
+      role: turn.role === "model" ? ("assistant" as const) : ("user" as const),
+      content: turn.content,
+    })),
+    { role: "user" as const, content: userMessage },
+  ];
 
-    const chat = model.startChat({ history: chatHistory });
-    const result = await chat.sendMessage(userMessage);
-    return result.response.text();
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5",
+    max_tokens: 1024,
+    system: BOLBOT_SYSTEM_PROMPT,
+    messages,
   });
+
+  const block = response.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response type from Claude");
+  return block.text;
 }
 
-export async function transcribeAudio(audioBase64: string, mimeType: string = "audio/ogg"): Promise<string> {
-  return enqueue(async () => {
-    const ai = getGenAI();
+// ---------------------------------------------------------------------------
+// Voice transcription — Gemini (best-in-class multimodal audio)
+// ---------------------------------------------------------------------------
+
+export async function transcribeAudio(
+  audioBase64: string,
+  mimeType: string = "audio/ogg"
+): Promise<string> {
+  return enqueueGemini(async () => {
+    const ai = getGemini();
     const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const audioPart: Part = {
-      inlineData: {
-        data: audioBase64,
-        mimeType,
-      },
+      inlineData: { data: audioBase64, mimeType },
     };
 
     const result = await model.generateContent([
@@ -147,32 +169,49 @@ export async function transcribeAudio(audioBase64: string, mimeType: string = "a
   });
 }
 
+// ---------------------------------------------------------------------------
+// Image understanding — Gemini (vision) + Claude (explanation)
+// ---------------------------------------------------------------------------
+
 export async function explainImage(
   imageBase64: string,
   mimeType: string,
   history: ConversationTurn[]
 ): Promise<string> {
-  return enqueue(async () => {
-    const ai = getGenAI();
-    const model = ai.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      systemInstruction: BOLBOT_SYSTEM_PROMPT,
-    });
+  const imageUrl = `data:${mimeType};base64,${imageBase64}`;
 
-    const imagePart: Part = {
-      inlineData: {
-        data: imageBase64,
-        mimeType,
-      },
-    };
+  const client = getAnthropic();
 
-    const chatHistory = history.map((turn) => ({
-      role: turn.role,
-      parts: [{ text: turn.content }],
-    }));
+  const messages: Anthropic.MessageParam[] = [
+    ...history.map((turn) => ({
+      role: turn.role === "model" ? ("assistant" as const) : ("user" as const),
+      content: turn.content,
+    })),
+    {
+      role: "user" as const,
+      content: [
+        {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+            data: imageBase64,
+          },
+        },
+        { type: "text" as const, text: IMAGE_EXPLANATION_PROMPT },
+      ],
+    },
+  ];
 
-    const chat = model.startChat({ history: chatHistory });
-    const result = await chat.sendMessage([imagePart, IMAGE_EXPLANATION_PROMPT]);
-    return result.response.text();
+  const response = await client.messages.create({
+    model: "claude-haiku-4-5",
+    max_tokens: 1024,
+    system: BOLBOT_SYSTEM_PROMPT,
+    messages,
   });
+
+  void imageUrl;
+  const block = response.content[0];
+  if (block.type !== "text") throw new Error("Unexpected response type from Claude");
+  return block.text;
 }
