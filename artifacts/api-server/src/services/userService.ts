@@ -29,7 +29,13 @@ export async function getOrCreateUser(platformUserId: string, platform: string =
     }
   }).catch(() => {});
 
-  return newUser;
+  void db
+    .update(usersTable)
+    .set({ badges: ["pehla_kadam"] })
+    .where(eq(usersTable.id, newUser.id))
+    .catch(() => {});
+
+  return { ...newUser, badges: ["pehla_kadam"] };
 }
 
 export async function updateUser(

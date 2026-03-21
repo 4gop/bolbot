@@ -80,17 +80,44 @@ Mujhse karo:
 
 Main simple Hindi mein explain karunga!`;
 
+function validateTelegramSecret(req: import("express").Request): boolean {
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!expectedSecret) return true;
+  const provided = req.headers["x-telegram-bot-api-secret-token"];
+  return provided === expectedSecret;
+}
+
 router.post("/webhook/telegram", async (req, res) => {
+  if (!validateTelegramSecret(req)) {
+    res.status(403).json({ ok: false });
+    return;
+  }
+
   res.json({ ok: true });
 
+  interface TelegramFrom { username?: string; first_name?: string }
+  interface TelegramPhoto { file_id: string }
+  interface TelegramVoice { file_id: string }
+  interface TelegramMessage {
+    chat: { id: number };
+    from?: TelegramFrom;
+    text?: string;
+    photo?: TelegramPhoto[];
+    voice?: TelegramVoice;
+  }
+  interface TelegramUpdate {
+    message?: TelegramMessage;
+    edited_message?: TelegramMessage;
+  }
+
   try {
-    const update = req.body;
-    const message = update.message || update.edited_message;
+    const update = req.body as TelegramUpdate;
+    const message = update.message ?? update.edited_message;
     if (!message) return;
 
     const chatId = message.chat.id;
     const userId = `telegram_${chatId}`;
-    const username = message.from?.username || message.from?.first_name;
+    const username = message.from?.username ?? message.from?.first_name;
 
     const user = await getOrCreateUser(userId, "telegram");
 
