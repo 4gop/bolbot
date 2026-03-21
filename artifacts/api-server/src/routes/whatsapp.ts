@@ -21,6 +21,9 @@ import crypto from "crypto";
 const router: IRouter = Router();
 
 function buildWebhookUrl(req: Request): string {
+  const base = process.env.TWILIO_WEBHOOK_BASE_URL?.replace(/\/$/, "");
+  if (base) return `${base}${req.originalUrl}`;
+
   const proto =
     (req.headers["x-forwarded-proto"] as string | undefined) ?? "https";
   const host =

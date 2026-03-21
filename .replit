@@ -28,3 +28,4 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
+TWILIO_WEBHOOK_BASE_URL = "https://bol-bot-tutor.replit.app"
