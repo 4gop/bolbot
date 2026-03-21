@@ -20,16 +20,34 @@ import crypto from "crypto";
 
 const router: IRouter = Router();
 
+function buildWebhookUrl(req: Request): string {
+  const proto =
+    (req.headers["x-forwarded-proto"] as string | undefined) ?? "https";
+  const host =
+    (req.headers["x-forwarded-host"] as string | undefined) ??
+    (req.headers.host as string | undefined) ??
+    process.env.REPLIT_DOMAINS?.split(",")[0] ??
+    "localhost";
+  return `${proto}://${host}${req.originalUrl}`;
+}
+
 function validateTwilioSignature(req: Request): boolean {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  if (!authToken) return false;
+  if (!authToken) {
+    req.log.warn("TWILIO_AUTH_TOKEN not set — rejecting webhook");
+    return false;
+  }
 
   const twilioSignature = req.headers["x-twilio-signature"];
-  if (typeof twilioSignature !== "string" || !twilioSignature) return false;
+  if (typeof twilioSignature !== "string" || !twilioSignature) {
+    req.log.warn("Missing x-twilio-signature header");
+    return false;
+  }
 
-  const url = `https://${req.headers.host}${req.originalUrl}`;
+  const url = buildWebhookUrl(req);
+  req.log.info({ url, twilioSignature }, "Twilio signature check");
+
   const params = req.body as Record<string, string>;
-
   const sortedParams = Object.keys(params)
     .sort()
     .reduce((acc, key) => acc + key + params[key], url);
@@ -39,7 +57,17 @@ function validateTwilioSignature(req: Request): boolean {
   const expectedSig = hmac.digest("base64");
 
   try {
-    return crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(twilioSignature));
+    const valid = crypto.timingSafeEqual(
+      Buffer.from(expectedSig),
+      Buffer.from(twilioSignature)
+    );
+    if (!valid) {
+      req.log.warn(
+        { url, expected: expectedSig, received: twilioSignature },
+        "Twilio signature mismatch"
+      );
+    }
+    return valid;
   } catch {
     return false;
   }
@@ -65,12 +93,19 @@ async function downloadMedia(url: string): Promise<Buffer | null> {
   });
 }
 
-async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
+async function sendWhatsAppMessage(
+  to: string,
+  body: string,
+  log?: import("pino").Logger
+): Promise<void> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER;
 
-  if (!accountSid || !authToken || !fromNumber) return;
+  if (!accountSid || !authToken || !fromNumber) {
+    log?.warn("Twilio credentials missing — cannot send WhatsApp reply");
+    return;
+  }
 
   const postData = new URLSearchParams({
     From: `whatsapp:${fromNumber}`,
@@ -93,8 +128,26 @@ async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
       },
     };
 
-    const req = https.request(options, () => resolve());
-    req.on("error", () => resolve());
+    const req = https.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => {
+        const responseBody = Buffer.concat(chunks).toString("utf8");
+        if (res.statusCode && res.statusCode >= 400) {
+          log?.error(
+            { status: res.statusCode, body: responseBody },
+            "Twilio API error sending WhatsApp message"
+          );
+        } else {
+          log?.info({ status: res.statusCode }, "WhatsApp message sent");
+        }
+        resolve();
+      });
+    });
+    req.on("error", (err) => {
+      log?.error({ err }, "Network error sending WhatsApp message");
+      resolve();
+    });
     req.write(postBuffer);
     req.end();
   });
@@ -113,6 +166,18 @@ Main simple Hindi mein explain karunga — jaise koi bada bhai/didi samjhata hai
 Bilkul free hai. Shuru karo!`;
 
 router.post("/webhook/whatsapp", async (req, res) => {
+  const log = req.log;
+
+  log.info(
+    {
+      host: req.headers.host,
+      forwardedHost: req.headers["x-forwarded-host"],
+      forwardedProto: req.headers["x-forwarded-proto"],
+      hasSig: !!req.headers["x-twilio-signature"],
+    },
+    "WhatsApp webhook received"
+  );
+
   if (!validateTwilioSignature(req)) {
     res.status(403).send("Forbidden");
     return;
@@ -125,6 +190,8 @@ router.post("/webhook/whatsapp", async (req, res) => {
     const mediaUrl = body.MediaUrl0;
     const mediaContentType = body.MediaContentType0;
 
+    log.info({ from, messageBody: messageBody?.slice(0, 80), mediaContentType }, "WhatsApp message details");
+
     if (!from) {
       res.status(400).set("Content-Type", "text/xml; charset=utf-8").send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
       return;
@@ -134,7 +201,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
 
     const isNewUser = user.totalMessages === 0;
     if (isNewUser) {
-      await sendWhatsAppMessage(from, WELCOME_MESSAGE);
+      await sendWhatsAppMessage(from, WELCOME_MESSAGE, log);
     }
 
     const history = await getConversationHistory(user.id);
@@ -220,7 +287,8 @@ router.post("/webhook/whatsapp", async (req, res) => {
       fullResponse += `\n\n🏅 Naya badge mila: ${newBadges.map((b) => b.name).join(", ")}!`;
     }
 
-    await sendWhatsAppMessage(from, fullResponse);
+    log.info({ to: from, responseLength: fullResponse.length }, "Sending WhatsApp reply");
+    await sendWhatsAppMessage(from, fullResponse, log);
 
     res.set("Content-Type", "text/xml; charset=utf-8");
     res.send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
