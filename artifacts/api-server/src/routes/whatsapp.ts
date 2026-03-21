@@ -78,6 +78,8 @@ async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
     Body: body,
   }).toString();
 
+  const postBuffer = Buffer.from(postData, "utf8");
+
   return new Promise((resolve) => {
     const auth = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
     const options = {
@@ -85,15 +87,15 @@ async function sendWhatsAppMessage(to: string, body: string): Promise<void> {
       path: `/2010-04-01/Accounts/${accountSid}/Messages.json`,
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
         Authorization: `Basic ${auth}`,
-        "Content-Length": Buffer.byteLength(postData),
+        "Content-Length": postBuffer.length,
       },
     };
 
     const req = https.request(options, () => resolve());
     req.on("error", () => resolve());
-    req.write(postData);
+    req.write(postBuffer);
     req.end();
   });
 }
@@ -124,7 +126,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
     const mediaContentType = body.MediaContentType0;
 
     if (!from) {
-      res.status(400).send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
+      res.status(400).set("Content-Type", "text/xml; charset=utf-8").send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
       return;
     }
 
@@ -160,7 +162,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
     }
 
     if (!botResponse) {
-      res.set("Content-Type", "text/xml");
+      res.set("Content-Type", "text/xml; charset=utf-8");
       res.send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
       return;
     }
@@ -220,11 +222,11 @@ router.post("/webhook/whatsapp", async (req, res) => {
 
     await sendWhatsAppMessage(from, fullResponse);
 
-    res.set("Content-Type", "text/xml");
+    res.set("Content-Type", "text/xml; charset=utf-8");
     res.send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
   } catch (err) {
     req.log.error({ err }, "WhatsApp webhook error");
-    res.set("Content-Type", "text/xml");
+    res.set("Content-Type", "text/xml; charset=utf-8");
     res.send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
   }
 });
