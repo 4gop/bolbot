@@ -1,0 +1,423 @@
+BUILD: BolBot — Voice-First AI Tutor for Bharat
+A production-ready, full-stack application that runs 
+simultaneously on WhatsApp, Telegram, and Web browser.
+
+CRITICAL INSTRUCTION: Before writing any code, output 
+a complete implementation plan. List every file you will 
+create, every API you will integrate, and every feature 
+you will build. Do not write a single line of code until 
+the plan is complete.
+
+═══════════════════════════════════════════════════════
+PRODUCT VISION
+═══════════════════════════════════════════════════════
+
+BolBot is the first voice-native AI tutor built 
+specifically for Hindi-medium students in Tier 2/3 
+India. Students in Bihar, UP, MP, and Rajasthan can 
+send a voice note, photo, or text in Hindi/Hinglish/
+Bhojpuri and get a warm, clear explanation back — 
+like a smart elder sibling who always has time for them.
+
+The product runs on three platforms simultaneously:
+- WhatsApp (via Twilio) — primary channel
+- Telegram (via python-telegram-bot) — secondary
+- Web app (Flask + HTML) — for desktop users
+
+═══════════════════════════════════════════════════════
+COMPLETE FEATURE LIST — BUILD ALL OF THESE
+═══════════════════════════════════════════════════════
+
+FEATURE 1: MULTI-PLATFORM MESSAGE HANDLING
+
+WhatsApp handler (Twilio):
+- POST /webhook/whatsapp receives all message types
+- Handles text, voice note, image
+- Sends back text or voice note response
+
+Telegram handler (python-telegram-bot):
+- Handles /start command
+- Handles text messages
+- Handles voice messages (OGG format)
+- Handles photo messages
+- Sends back text or voice response
+
+Web app handler (Flask):
+- Clean chat interface at /
+- Supports text input
+- Supports microphone recording (Web Audio API)
+- Supports file/image upload
+- Real-time response display
+- Works on mobile browser
+
+FEATURE 2: VOICE INPUT + HINDI VOICE OUTPUT
+
+Input:
+- WhatsApp voice notes (OGG/MP3)
+- Telegram voice messages (OGG)
+- Web app microphone recording (WebM/WAV)
+- Transcribe ALL audio using Gemini 1.5 Flash
+  (natively handles Hindi audio)
+
+Output:
+- Convert BolBot text response to Hindi speech
+- Use Google Cloud Text-to-Speech
+  Voice: hi-IN-Wavenet-D (natural male Hindi)
+  Speaking rate: 0.9 (slightly slower, clearer)
+- Send audio back as voice note on WhatsApp/Telegram
+- Play audio automatically on web app
+- Delete temp audio files after sending
+
+FEATURE 3: PHOTO/IMAGE EXPLANATION
+
+- Accept photo of textbook page on all 3 platforms
+- Send to Gemini 1.5 Flash Vision with prompt:
+  "Is image mein jo bhi question, concept, ya 
+  problem hai use class 10 ke student ko explain 
+  karo. Simple Hindi mein. Step by step. 
+  Ek real life example zaroor do."
+- Return explanation as text + optional voice
+
+FEATURE 4: AI PROFILE IMAGE GENERATION
+
+- When new user joins on any platform, generate 
+  a unique personalized avatar for them
+- Use Stability AI API (stable-diffusion-xl) or 
+  Replicate API (whichever is available)
+- Prompt for avatar generation:
+  "A friendly cartoon student character, 
+  Indian student aesthetic, colorful, 
+  simple background, cheerful expression, 
+  suitable for a study app profile picture, 
+  digital art style"
+- Send generated image as welcome gift to user
+- Store image URL in database per user
+- Display on web app profile
+
+FEATURE 5: CHAT MEMORY (CONVERSATION CONTEXT)
+
+- Store last 10 messages per user in database
+- Pass conversation history to Gemini on every call
+- This means BolBot remembers:
+  * What subjects user has asked about
+  * Previous doubts in same session
+  * User's name if they shared it
+- Memory resets after 24 hours of inactivity
+- Format history as Gemini multi-turn conversation
+
+FEATURE 6: GAMIFICATION ENGINE
+
+Streaks:
+- Track daily usage per user
+- If user messages today AND yesterday = streak++
+- Show streak count in every response footer:
+  "🔥 3 din se padh rahe ho — zabardast!"
+- Streak breaks if user misses a day
+- Send reminder message at 8PM if no activity
+
+Points system:
+- +5 points per text doubt solved
+- +10 points per voice doubt solved  
+- +15 points per image/photo doubt solved
+- +25 bonus points for 7-day streak
+- Show points in response: "⭐ +10 points! 
+  Total: 150 points"
+
+Badges (award automatically):
+- "Pehla Kadam" — first doubt solved
+- "Awaaz Ka Shehzada" — first voice note sent
+- "Aankhon Wala" — first photo sent
+- "Hafte Ka Hero" — 7 day streak
+- "Sau Ka Dum" — 100 doubts solved
+- "BolBot Star" — 500 doubts solved
+- Send badge image + congratulation message 
+  when earned
+
+Leaderboard:
+- Weekly top 10 users by points
+- Accessible at /leaderboard on web app
+- Show on Telegram via /leaderboard command
+
+FEATURE 7: BOLBOT PERSONALITY + SYSTEM PROMPT
+
+Use EXACTLY this system prompt for every Gemini call:
+
+"""
+Tu BolBot hai — Bharat ka sabse cool aur 
+samajhdaar tutor. Tera kaam hai India ke 
+chhote sheher ke students ki madad karna.
+
+Tera personality:
+- Tu bade bhai/didi jaisa hai — warm, patient, 
+  encouraging
+- Tu kabhi judgmental nahi hota chahe kitna 
+  basic question ho
+- Tu relatable examples deta hai — khet, bazaar, 
+  chai ki dukaan, cricket, Bollywood
+- Tu thoda fun bhi hai — kabhi kabhi light humor 
+  theek hai
+
+Sacred rules:
+1. LANGUAGE: Hamesha usi language mein jawab de 
+   jisme student ne poochha. Hindi = Hindi reply. 
+   Hinglish = Hinglish reply. Bhojpuri = Bhojpuri 
+   reply jitna ho sake.
+2. SIMPLICITY: Bilkul simple words. Complicated 
+   English avoid karo. Agar Hindi word hai toh 
+   wahi use karo.
+3. LENGTH: 4-5 sentences max for normal doubts. 
+   Zyada detail sirf tab jab student ne manga ho.
+4. EXAMPLE: Har explanation mein ek desi real 
+   life example ZAROOR do.
+5. ENCOURAGEMENT: Har jawab ke end mein ek 
+   short encouraging line — "Bahut achha socha!", 
+   "Aage badho!", "Tu kar sakta hai!"
+6. VOICE-FRIENDLY: Short sentences. No bullet 
+   points. Natural spoken Hindi. Jo sunne mein 
+   achha lage.
+
+Conversation history is provided. Use it to:
+- Remember what user asked before
+- Build on previous explanations
+- Address user by name if known
+"""
+
+FEATURE 8: ONBOARDING FLOW
+
+New user first message triggers:
+1. Generate AI profile image (Feature 4)
+2. Send welcome message:
+   "Namaste! Main BolBot hoon 🎓
+   Bharat ka pehla Hindi voice tutor!
+   
+   Mujhse karo:
+   - Voice note bhejo apna doubt
+   - Textbook ka photo khichke bhejo
+   - Ya seedha text mein pucho
+   
+   Main simple Hindi mein explain karunga — 
+   jaise koi bada bhai/didi samjhata hai.
+   
+   Bilkul free hai. Shuru karo!"
+3. Send generated profile image
+4. Award "Pehla Kadam" badge immediately 
+   after first doubt is solved
+
+FEATURE 9: WEB APP UI
+
+Build a beautiful, mobile-first chat interface:
+
+Design requirements:
+- Dark theme (#0f0f0f background)
+- Accent color: #FF6B35 (warm orange — energetic)
+- Font: Inter or Poppins
+- Feels like WhatsApp Web but more colorful
+
+Pages:
+/ — Main chat interface
+  - Chat bubbles (user right, BolBot left)
+  - BolBot avatar on left of each response
+  - Voice record button (hold to record)
+  - Image upload button
+  - Text input with send button
+  - Show streak + points in header
+  - Smooth scroll, message animations
+
+/leaderboard — Weekly top 10
+  - Card for each user showing rank, 
+    avatar, points, streak
+  - Animated number counting
+
+/stats?token=ADMIN_TOKEN — Admin dashboard
+  - Total users, messages today
+  - Voice vs text vs image breakdown
+  - Most asked subjects
+  - Daily active users chart (Chart.js)
+  - Recent interactions log
+
+═══════════════════════════════════════════════════════
+DATABASE SCHEMA (PostgreSQL on Replit)
+═══════════════════════════════════════════════════════
+
+Table: users
+- id (serial primary key)
+- platform (whatsapp/telegram/web)
+- platform_user_id (string, unique per platform)
+- phone_last4 (string, nullable)
+- username (string, nullable)
+- avatar_url (string, nullable)
+- points (integer, default 0)
+- streak_count (integer, default 0)
+- last_active_date (date)
+- total_messages (integer, default 0)
+- badges (text array)
+- created_at (timestamp)
+
+Table: interactions
+- id (serial primary key)
+- user_id (foreign key → users)
+- platform (string)
+- input_type (text/voice/image)
+- user_message (text)
+- bot_response (text)
+- language_detected (string)
+- subject_keywords (text array)
+- points_earned (integer)
+- response_time_ms (integer)
+- created_at (timestamp)
+
+Table: conversation_memory
+- id (serial primary key)
+- user_id (foreign key → users)
+- role (user/assistant)
+- content (text)
+- created_at (timestamp)
+
+═══════════════════════════════════════════════════════
+FILE STRUCTURE
+═══════════════════════════════════════════════════════
+
+bolbot/
+├── main.py                    # Entry point, Flask app
+├── config.py                  # All env vars + settings
+├── database.py                # PostgreSQL operations
+│
+├── handlers/
+│   ├── whatsapp_handler.py    # Twilio webhook
+│   ├── telegram_handler.py    # Telegram bot
+│   └── web_handler.py         # Web app routes
+│
+├── services/
+│   ├── gemini_service.py      # AI responses + vision
+│   ├── voice_service.py       # STT + TTS
+│   ├── image_service.py       # Avatar generation
+│   └── gamification_service.py # Points, streaks, badges
+│
+├── templates/
+│   ├── chat.html              # Main web chat UI
+│   ├── leaderboard.html       # Leaderboard page
+│   └── dashboard.html         # Admin dashboard
+│
+├── static/
+│   ├── css/style.css          # Dark theme styles
+│   ├── js/chat.js             # Chat UI logic
+│   └── badges/                # Badge images (SVG)
+│       ├── pehla_kadam.svg
+│       ├── awaaz_ka_shehzada.svg
+│       └── [other badges].svg
+│
+├── requirements.txt
+├── .env.example
+└── README.md
+
+═══════════════════════════════════════════════════════
+ENVIRONMENT VARIABLES NEEDED
+═══════════════════════════════════════════════════════
+
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_WHATSAPP_NUMBER=
+TELEGRAM_BOT_TOKEN=
+GEMINI_API_KEY=
+GOOGLE_APPLICATION_CREDENTIALS=
+STABILITY_API_KEY=
+DATABASE_URL=
+ADMIN_DASHBOARD_TOKEN=
+SECRET_KEY=
+
+═══════════════════════════════════════════════════════
+TECH STACK
+═══════════════════════════════════════════════════════
+
+Backend: Python 3.11 + Flask
+Database: PostgreSQL (Replit built-in)
+AI: Google Gemini 1.5 Flash
+Voice STT: Gemini 1.5 Flash audio
+Voice TTS: Google Cloud Text-to-Speech
+Image Gen: Stability AI or Replicate
+WhatsApp: Twilio API
+Telegram: python-telegram-bot library
+Frontend: HTML + CSS + Vanilla JS
+Charts: Chart.js
+Hosting: Replit (always-on)
+
+Requirements.txt must include:
+flask
+twilio
+python-telegram-bot
+google-generativeai
+google-cloud-texttospeech
+psycopg2-binary
+requests
+python-dotenv
+gunicorn
+Pillow
+stability-sdk
+
+═══════════════════════════════════════════════════════
+PERFORMANCE REQUIREMENTS
+═══════════════════════════════════════════════════════
+
+- Text response: under 3 seconds
+- Voice response: under 8 seconds
+- Image explanation: under 6 seconds
+- Avatar generation: under 15 seconds 
+  (async, don't block main response)
+- All Firestore/DB writes: non-blocking 
+  (background thread)
+- Temp audio files deleted within 60 seconds
+- Never return 500 to Twilio or Telegram
+  (causes retry loops)
+
+═══════════════════════════════════════════════════════
+ERROR MESSAGES (ALL IN HINDI)
+═══════════════════════════════════════════════════════
+
+API failure:
+"Yaar thoda technical issue aa gaya! 
+2 minute baad dobara try karo 😅"
+
+Voice processing failure:
+"Voice note theek se nahi aaya. 
+Text mein likh ke bhejo?"
+
+Image processing failure:  
+"Photo clearly nahi dikhi. 
+Dobara khichke bhejo ya text mein pucho?"
+
+Rate limit hit:
+"Bahut saare log ek saath pooch rahe hain! 
+1 minute wait karo phir try karo 🙏"
+
+═══════════════════════════════════════════════════════
+TESTING CHECKLIST
+═══════════════════════════════════════════════════════
+
+After building, test these in order:
+
+1. Web app loads at / with dark theme
+2. Send text: "Photosynthesis kya hota hai"
+   → Should get Hindi explanation with example
+3. Send text: "Newton ka pehla niyam batao"
+   → Should get Hindi explanation
+4. Check points increased after each message
+5. Check streak shows in response
+6. Send 2nd message → check memory works
+   (BolBot should remember first message)
+7. Check /leaderboard loads
+8. Check /stats?token=bolbot123 loads dashboard
+9. Test Telegram /start command
+10. Confirm new user gets welcome message
+
+═══════════════════════════════════════════════════════
+FINAL INSTRUCTION
+═══════════════════════════════════════════════════════
+
+Build this like a Series A startup's engineering 
+team would ship a v1. Clean code, comments in 
+English, error handling everywhere, no hardcoded 
+secrets, modular file structure.
+
+After building everything, run the 10-item testing 
+checklist yourself and show me the results before 
+saying you are done.
