@@ -89,9 +89,10 @@ export default function ChatPage() {
         setCurrentBadge(response.newBadges[0]);
       }
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to send message:', error);
-      const errMsg = error?.response?.data?.message || error?.message || 'Kuch galat ho gaya. Dobara try karo! 😅';
+      const errMsg =
+        error instanceof Error ? error.message : 'Kuch galat ho gaya. Dobara try karo! 😅';
       setMessages(prev => [...prev, {
         id: uuidv4(),
         role: 'bot',

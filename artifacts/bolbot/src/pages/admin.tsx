@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGetAdminStats } from '@workspace/api-client-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Users, MessageSquare, Activity, Image as ImageIcon, Mic, Type, AlertCircle } from 'lucide-react';
@@ -53,7 +53,13 @@ export default function AdminStatsPage() {
     { name: 'Image', value: data.imageCount, color: '#10b981' },
   ];
 
-  const StatCard = ({ title, value, icon: Icon, colorClass }: any) => (
+  interface StatCardProps {
+    title: string;
+    value: number;
+    icon: React.ElementType;
+    colorClass: string;
+  }
+  const StatCard = ({ title, value, icon: Icon, colorClass }: StatCardProps) => (
     <div className="bg-card border border-white/5 rounded-2xl p-6 shadow-lg">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-muted-foreground font-medium">{title}</h3>
