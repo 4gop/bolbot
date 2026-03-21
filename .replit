@@ -28,4 +28,3 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-ADMIN_DASHBOARD_TOKEN = "bolbot-admin-2024"

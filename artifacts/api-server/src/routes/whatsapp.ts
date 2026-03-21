@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { generateTextResponse, transcribeAudio, explainImage } from "../services/gemini.js";
 import { synthesizeHindiSpeech } from "../services/tts.js";
 import {
@@ -20,25 +20,29 @@ import crypto from "crypto";
 
 const router: IRouter = Router();
 
-function validateTwilioSignature(req: any): boolean {
+function validateTwilioSignature(req: Request): boolean {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   if (!authToken) return false;
 
-  const twilioSignature = req.headers["x-twilio-signature"] as string;
-  if (!twilioSignature) return false;
+  const twilioSignature = req.headers["x-twilio-signature"];
+  if (typeof twilioSignature !== "string" || !twilioSignature) return false;
 
   const url = `https://${req.headers.host}${req.originalUrl}`;
-  const params = req.body;
+  const params = req.body as Record<string, string>;
 
   const sortedParams = Object.keys(params)
     .sort()
-    .reduce((acc: string, key) => acc + key + params[key], url);
+    .reduce((acc, key) => acc + key + params[key], url);
 
   const hmac = crypto.createHmac("sha1", authToken);
   hmac.update(sortedParams);
   const expectedSig = hmac.digest("base64");
 
-  return crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(twilioSignature));
+  try {
+    return crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(twilioSignature));
+  } catch {
+    return false;
+  }
 }
 
 async function downloadMedia(url: string): Promise<Buffer | null> {
@@ -107,11 +111,17 @@ Main simple Hindi mein explain karunga — jaise koi bada bhai/didi samjhata hai
 Bilkul free hai. Shuru karo!`;
 
 router.post("/webhook/whatsapp", async (req, res) => {
+  if (!validateTwilioSignature(req)) {
+    res.status(403).send("Forbidden");
+    return;
+  }
+
   try {
-    const from = req.body.From as string;
-    const body = req.body.Body as string;
-    const mediaUrl = req.body.MediaUrl0 as string;
-    const mediaContentType = req.body.MediaContentType0 as string;
+    const body = req.body as Record<string, string>;
+    const from = body.From;
+    const messageBody = body.Body;
+    const mediaUrl = body.MediaUrl0;
+    const mediaContentType = body.MediaContentType0;
 
     if (!from) {
       res.status(400).send("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response></Response>");
@@ -128,7 +138,7 @@ router.post("/webhook/whatsapp", async (req, res) => {
     const history = await getConversationHistory(user.id);
 
     let inputType: "text" | "voice" | "image" = "text";
-    let userMessage = body || "";
+    let userMessage = messageBody || "";
     let botResponse = "";
 
     if (mediaUrl && mediaContentType) {

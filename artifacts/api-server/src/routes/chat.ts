@@ -137,9 +137,10 @@ router.post("/chat", async (req, res) => {
       newBadges,
       inputType,
     });
-  } catch (err: any) {
+  } catch (err) {
     req.log.error({ err }, "Chat error");
-    if (err?.status === 429) {
+    const isQuotaError = err instanceof Error && "status" in err && (err as { status: number }).status === 429;
+    if (isQuotaError) {
       res.status(429).json({
         error: "quota_exceeded",
         message: "Abhi bahut zyada requests aa rahe hain. Thodi der baad dobara try karo! 🙏",

@@ -109,7 +109,7 @@ router.post("/webhook/telegram", async (req, res) => {
     if (message.text === "/leaderboard") {
       const { getLeaderboard } = await import("../services/userService.js");
       const data = await getLeaderboard(5);
-      const lines = data.entries.map((e: any) => `${e.rank}. ${e.username || "Anonymous"} — ${e.points} pts`);
+      const lines = data.entries.map((e) => `${e.rank}. ${e.username ?? "Anonymous"} — ${e.points} pts`);
       await sendTelegramMessage(chatId, `🏆 Weekly Top 5:\n\n${lines.join("\n")}`);
       return;
     }
