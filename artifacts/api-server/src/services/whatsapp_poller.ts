@@ -22,7 +22,15 @@ const processedSids = new Set<string>();
 let lastCheckTime = new Date(Date.now() - 10 * 60_000);
 
 function getWhatsAppNumber(): string {
-  return process.env.WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_NUMBER || "";
+  // WHATSAPP_NUMBER (shared env var) takes precedence over the TWILIO_WHATSAPP_NUMBER
+  // secret when they differ. Replit blocks setting an env var with the same name as an
+  // existing secret, so WHATSAPP_NUMBER=+14155238886 is the override mechanism until
+  // the TWILIO_WHATSAPP_NUMBER secret is corrected to the actual sandbox number.
+  return (
+    process.env.WHATSAPP_NUMBER ||
+    process.env.TWILIO_WHATSAPP_NUMBER ||
+    ""
+  );
 }
 
 function getTwilioClient(): ReturnType<typeof twilio> {
