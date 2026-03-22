@@ -43,7 +43,7 @@ function getTwilioClient(): ReturnType<typeof twilio> {
 async function sendReply(to: string, body: string): Promise<void> {
   const fromNumber = getWhatsAppNumber();
   if (!fromNumber) {
-    logger.warn("WHATSAPP_NUMBER not set — cannot send reply");
+    logger.warn("Neither WHATSAPP_NUMBER nor TWILIO_WHATSAPP_NUMBER is set — cannot send reply");
     return;
   }
   const client = getTwilioClient();
