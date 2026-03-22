@@ -6,6 +6,7 @@
 ![Node.js](https://img.shields.io/badge/Node.js-24-green?logo=node.js)
 ![Claude AI](https://img.shields.io/badge/AI-Claude%203.5%20Haiku-orange?logo=anthropic)
 ![Twilio](https://img.shields.io/badge/WhatsApp-Twilio-red?logo=twilio)
+![Telegram](https://img.shields.io/badge/Telegram-@bolbot_india_bot-blue?logo=telegram)
 ![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-blue?logo=postgresql)
 ![Replit](https://img.shields.io/badge/Hosted%20on-Replit-purple?logo=replit)
 ![Status](https://img.shields.io/badge/Status-Live-brightgreen)
@@ -25,7 +26,9 @@ BolBot does. Students send a voice note, a photo of their textbook, or a typed q
 
 🌐 **Web App:** [bol-bot-tutor.replit.app](https://bol-bot-tutor.replit.app)
 
-📱 **WhatsApp:** Save `+1 415 523 8886` → Send *"join correct-flat"* → Ask anything in Hindi
+📱 **WhatsApp:** Save `+1 415 523 8886` → Send *"join thing-slow"* → Ask anything in Hindi
+
+📬 **Telegram:** Search `@bolbot_india_bot` on Telegram → Send `/start` → Ask anything in Hindi
 
 ---
 
@@ -90,14 +93,14 @@ WhatsApp reply sent in Hindi within ~10 seconds
 
 ### WhatsApp (Recommended)
 1. Save this number: **+1 415 523 8886**
-2. Send the message: `join correct-flat` (Twilio sandbox join code)
+2. Send the message: `join thing-slow` (Twilio sandbox join code)
 3. Ask anything: *"Bhaisahab, Newton ka doosra niyam kya hai?"*
 
 ### Web App
 Visit [bol-bot-tutor.replit.app](https://bol-bot-tutor.replit.app) and type or speak your question directly in the browser.
 
 ### Telegram
-Search for `@BolBotTutor` and start chatting.
+Search for `@bolbot_india_bot` on Telegram, send `/start`, and ask anything in Hindi.
 
 ---
 
@@ -211,4 +214,4 @@ BolBot is early-stage and built for impact. Contributions welcome.
 
 ## License
 
-MIT © 2026  BolBot. Built with ❤️ for Bharat's students.
+MIT © 2025 BolBot. Built with ❤️ for Bharat's students.
