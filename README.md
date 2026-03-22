@@ -211,4 +211,4 @@ BolBot is early-stage and built for impact. Contributions welcome.
 
 ## License
 
-MIT © 2025 BolBot. Built with ❤️ for Bharat's students.
+MIT © 2026  BolBot. Built with ❤️ for Bharat's students.
