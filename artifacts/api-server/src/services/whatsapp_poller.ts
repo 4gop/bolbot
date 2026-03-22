@@ -19,7 +19,11 @@ import {
 const POLL_INTERVAL_MS = 3000;
 
 const processedSids = new Set<string>();
-let lastCheckTime = new Date(Date.now() - 60_000);
+let lastCheckTime = new Date(Date.now() - 10 * 60_000);
+
+function getWhatsAppNumber(): string {
+  return process.env.WHATSAPP_NUMBER || process.env.TWILIO_WHATSAPP_NUMBER || "";
+}
 
 function getTwilioClient(): ReturnType<typeof twilio> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -29,9 +33,9 @@ function getTwilioClient(): ReturnType<typeof twilio> {
 }
 
 async function sendReply(to: string, body: string): Promise<void> {
-  const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+  const fromNumber = getWhatsAppNumber();
   if (!fromNumber) {
-    logger.warn("TWILIO_WHATSAPP_NUMBER not set — cannot send reply");
+    logger.warn("WHATSAPP_NUMBER not set — cannot send reply");
     return;
   }
   const client = getTwilioClient();
@@ -159,7 +163,7 @@ async function processInboundMessage(
 }
 
 async function poll(): Promise<void> {
-  const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+  const fromNumber = getWhatsAppNumber();
   if (!fromNumber) return;
 
   const client = getTwilioClient();
@@ -222,7 +226,7 @@ async function poll(): Promise<void> {
 }
 
 export function startWhatsAppPoller(): void {
-  const fromNumber = process.env.TWILIO_WHATSAPP_NUMBER;
+  const fromNumber = getWhatsAppNumber();
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
 
@@ -234,7 +238,7 @@ export function startWhatsAppPoller(): void {
   }
 
   logger.info(
-    { number: fromNumber, intervalMs: POLL_INTERVAL_MS },
+    { number: `whatsapp:${fromNumber}`, intervalMs: POLL_INTERVAL_MS },
     "WhatsApp poller starting"
   );
 

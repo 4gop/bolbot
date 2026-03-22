@@ -29,3 +29,4 @@ timeoutMs = 20000
 
 [userenv.shared]
 TWILIO_WEBHOOK_BASE_URL = "https://bol-bot-tutor.replit.app"
+WHATSAPP_NUMBER = "+14155238886"
