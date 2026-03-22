@@ -153,7 +153,7 @@ bolbot/
 ### Setup
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/bolbot.git
+git clone https://github.com/4gop/bolbot.git
 cd bolbot
 pnpm install
 ```
